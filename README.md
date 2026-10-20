@@ -3,19 +3,26 @@
 > 给所有被"升级丢会话"吓过的 DeepSeek Harness 用户。
 > 三件东西：**查毒、打快照、留遗书**。全部纯本地、零依赖、即下即用。
 
-## ① dsh-session-doctor.js —— 会话体检/解毒
+## ① dsh-session-doctor.js —— 会话体检/解毒（v2 三合一诊断）
 
-0.2.1 起，会话头里带退役字段（`sandboxMode`/`approvalPolicy`）的老会话会让整个会话列表崩掉（"老会话全不见了"，但文件都在）。这个脚本扫描并修复：
+升级后"会话消失"有两个已实锤的机制，症状一样病根不同（详见 [Discussion #10415](https://github.com/deepseek-ai/deepseek-harness/discussions/10415)）：
+
+1. **会话头拒绝**：`list()` 遇到单个会话头问题就整体抛错 → **所有**工作区都空。触发源：
+   - 退役字段 `sandboxMode`/`approvalPolicy`（仅 2026-07-26~28 两天窗口内的 nightly/自编译构建写过，**正式版从未写过**）
+   - 重复 session id（同一会话目录出现在多个工作区桶下：移动工作区没删旧目录/备份回灌/多机同步）
+2. **工作区路径过滤**：注册表路径与 `realpath(会话头 cwd)` 严格相等才显示——**改名/移动/掉盘/大小写差异**都会让单个工作区静默变空，不需要任何坏文件。这是大规模"升级后会话消失"最可能的元凶。
+
+本脚本一次跑完三项鉴别（全部只读，`--fix` 除外）：
 
 ```bash
-# 用 DSH 自带 Node（或任意 Node ≥ 22.15）：
-node dsh-session-doctor.js            # 只扫描，列出"毒会话"
-node dsh-session-doctor.js --fix      # 摘掉退役字段（自动留 .bak 备份）
+node dsh-session-doctor.js            # ①退役字段 ②重复id ③路径过滤，三项诊断
+node dsh-session-doctor.js --fix      # 摘退役字段（自动 .bak）
+node dsh-session-doctor.js "D:\path"  # 指定 sessions 根目录
 ```
 
-DSH 自带 Node 路径：`C:\Users\<你>\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe`
+**鉴别口诀**：全部工作区空 → 看①②；只有个别工作区空 → 看③（重建原路径目录即可复活）。
 
-保守派用法：按扫描结果把毒会话目录挪出 `~/.dsh\sessions\`，重启 DSH，其余会话立即复活。
+DSH 自带 Node 路径：`C:\Users\<你>\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe`
 
 ## ② Backup-DshSessions.ps1 —— 自动快照 watchdog
 
